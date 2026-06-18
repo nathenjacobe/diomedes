@@ -1,0 +1,27 @@
+[package]
+name = "diomedes_broadphase_shader"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["lib"]
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(target_arch, values("spirv"))'] }
+
+# must compile against the same rust-gpu revision as the codegen backend;
+[dependencies]
+spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu" }
+
+# read by cargo-gpu-install when the builder crate's build script runs;
+[package.metadata.rust-gpu.build]
+release = true
+target = "spirv-unknown-vulkan1.2"
+multimodule = false
+
+[package.metadata.rust-gpu.install]
+auto-install-rust-toolchain = true
+
+# standalone workspace root;
+[workspace]

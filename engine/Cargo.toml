@@ -1,0 +1,17 @@
+[package]
+name = "diomedes"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ash = "0.38.0"
+ash-window = "0.13.0"
+egui = "0.36.1"
+egui-winit = "0.36.1"
+glam = "0.33.3"
+log = "0.4.29"
+rayon = "1.11"
+shaderc = "0.10.1"
+tobj = "4.0.5"
+winit = "0.30.13"
+

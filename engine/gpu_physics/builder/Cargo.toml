@@ -1,0 +1,17 @@
+[package]
+name = "diomedes_shader_builder"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# build this crate explicitly to (re)compile the rust-gpu mesh shaders;
+#   path="$home/.cargo/bin:$path" rustup_toolchain=nightly-2026-05-22 \
+#   cargo build --manifest-path engine/gpu_physics/builder/cargo;toml
+# its build script compiles the sibling `..` shader crate and copies the
+# result to engine/shaders/gpu_physics/mesh;spv, which the engine embeds;
+
+[build-dependencies]
+cargo-gpu-install = { git = "https://github.com/Rust-GPU/rust-gpu" }
+
+# standalone workspace root; the rust-gpu toolchain build is heavy;
+[workspace]

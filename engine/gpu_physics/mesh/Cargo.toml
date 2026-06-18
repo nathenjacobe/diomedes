@@ -1,0 +1,32 @@
+[package]
+name = "diomedes_shaders"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["lib"]
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(target_arch, values("spirv"))'] }
+
+# the shader must compile against the same rust-gpu revision as the codegen
+# backend, so both come from git main;
+[dependencies]
+spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu" }
+
+[build-dependencies]
+cargo-gpu-install = { git = "https://github.com/Rust-GPU/rust-gpu" }
+
+# read by cargo-gpu-install when this crate's build script runs;
+[package.metadata.rust-gpu.build]
+release = true
+target = "spirv-unknown-vulkan1.2"
+multimodule = false
+
+[package.metadata.rust-gpu.install]
+auto-install-rust-toolchain = true
+
+# standalone; this crate is its own workspace root so cargo never tries to
+# fold it into the diomedes workspace; it needs the rust-gpu toolchain;
+[workspace]
