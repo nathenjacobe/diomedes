@@ -338,10 +338,8 @@ fn main() {
         egui::Area::new(egui::Id::new("wall_hud"))
             .anchor(egui::Align2::LEFT_TOP, [8.0, 8.0])
             .show(ctx, |ui| {
-                ui.monospace("WASD move  Q/E rise/fall  mouse look  scroll FOV");
-                ui.monospace("Left click: throw icosphere");
                 ui.monospace(format!(
-                    "{fps:.0} FPS   blocks: {BLOCK_COUNT}   bodies: {}   throws: {projectiles_fired}/{MAX_PROJECTILES}   sphere mass: {PROJECTILE_MASS:.1}",
+                    "{fps:.0} FPS   blocks: {BLOCK_COUNT}   bodies: {}",
                     solver.bodies.len()
                 ));
             });
