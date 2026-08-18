@@ -5,6 +5,7 @@ members = [
     "demos/avbd_box",
     "demos/cube_field",
     "demos/icosphere_box",
+    "demos/wall_throw",
     "demos/constraints",
 ]
 # standalone crates with their own heavy builds (rust-gpu codegen); never

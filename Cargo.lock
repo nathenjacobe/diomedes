@@ -2647,6 +2647,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wall_throw"
+version = "0.1.0"
+dependencies = [
+ "diomedes",
+ "env_logger",
+]
+
+[[package]]
 name = "wasip2"
 version = "1.0.4+wasi-0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"

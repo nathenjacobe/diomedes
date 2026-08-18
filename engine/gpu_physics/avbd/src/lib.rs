@@ -1,7 +1,7 @@
 //! gpu avbd solver: the block-coordinate-descent sweeps of
 //! `engine/src/physics/gpu.rs` as rust-gpu compute kernels;
 //! the warmstart carry-over and the csr contact indexing are cpu for performance,
-//! the expensive 6-dof block solves and dual multiplier updates run here;
+//! the rather expensive 6-dof block solves and dual multiplier updates run here;
 //!
 //! positions/orientations alternate between two buffers (wiht the jacobian): iteration
 //! k reads the snapshot from buffer `1-k%2` and writes the new state to
@@ -342,9 +342,8 @@ pub fn avbd_primal(
         };
 
         let (dq_self_lin, dq_self_ang) = (snap_pos - initial_lin, ang_diff(snap_rot, initial_ang));
-        // ported verbatim from the cpu: the other side's displacement from
-        // the snapshot, and its lever arm; the cpu always uses `contact;r_b`
-        // for `r_other` (a faithful quirk)
+        // the other side's displacement from the snapshot and its own lever
+        // arm.  For a body stored as b, the opposite lever arm is r_a.
         let (dq_other_lin, dq_other_ang, r_other) = if other == CONTAINER {
             (Vec3::ZERO, Vec3::ZERO, Vec3::ZERO)
         } else {
@@ -359,7 +358,12 @@ pub fn avbd_primal(
                     Quat::from_xyzw(or.x, or.y, or.z, or.w),
                     initial_ang_of(other, n, initial),
                 ),
-                Quat::from_xyzw(or.x, or.y, or.z, or.w) * contact.r_b.truncate(),
+                Quat::from_xyzw(or.x, or.y, or.z, or.w)
+                    * if is_a {
+                        contact.r_b.truncate()
+                    } else {
+                        contact.r_a.truncate()
+                    },
             )
         };
 

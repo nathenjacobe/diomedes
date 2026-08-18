@@ -1,6 +1,6 @@
 //! compute dispatch for the gpu broad and narrow phases; rust-gpu kernels run
 //! a support-based aabb sweep followed by gjk and epa per candidate pair
-//! the host reads one contact slot per pair after a fence
+//! the host reads up to four contact slots per pair after a fence
 
 use std::error::Error;
 use std::mem::size_of;
@@ -20,6 +20,7 @@ pub const NARROWPHASE_SPIRV: &[u8] = include_bytes!("../../shaders/gpu_physics/n
 pub const BROADPHASE_SPIRV: &[u8] = include_bytes!("../../shaders/gpu_physics/broadphase.spv");
 
 const WORKGROUP_SIZE: u32 = 64;
+const CONTACTS_PER_PAIR: usize = 4;
 
 /// packed shape parameters
 #[repr(C)]
@@ -250,13 +251,13 @@ impl NarrowPhaseCompute {
         let contacts = [
             Buffer::create(
                 device,
-                (max_pairs * size_of::<GpuContactOut>()) as vk::DeviceSize,
+                (max_pairs * CONTACTS_PER_PAIR * size_of::<GpuContactOut>()) as vk::DeviceSize,
                 storage,
                 host,
             )?,
             Buffer::create(
                 device,
-                (max_pairs * size_of::<GpuContactOut>()) as vk::DeviceSize,
+                (max_pairs * CONTACTS_PER_PAIR * size_of::<GpuContactOut>()) as vk::DeviceSize,
                 storage,
                 host,
             )?,
@@ -432,9 +433,9 @@ impl NarrowPhaseCompute {
         self.bodies.write(device, bytes_of(bodies))?;
         self.pairs.write(device, bytes_of(pairs))?;
 
-        // clear the contact slots the kernel does not touch (non-intersecting
-        // pairs), so a dispatch never sees stale contacts from an earlier one
-        let zero = vec![0u8; pairs.len() * size_of::<GpuContactOut>()];
+        // clear all reserved slots, including unused manifold slots, so a
+        // dispatch never sees stale contacts from an earlier one
+        let zero = vec![0u8; pairs.len() * CONTACTS_PER_PAIR * size_of::<GpuContactOut>()];
         contact_buffer.write(device, &zero)?;
 
         unsafe {
@@ -621,7 +622,7 @@ impl NarrowPhaseCompute {
                 .wait_for_fences(&[self.fence], true, u64::MAX)?;
         }
         // clear the contact slots the kernel does not touch
-        let zero = vec![0u8; pair_count * size_of::<GpuContactOut>()];
+        let zero = vec![0u8; pair_count * CONTACTS_PER_PAIR * size_of::<GpuContactOut>()];
         contact_buffer.write(device, &zero)?;
 
         unsafe {
@@ -670,7 +671,7 @@ impl NarrowPhaseCompute {
     }
 
     /// wait for the most recent [`self::submit`] and read back its raw
-    /// contact slots
+    /// contact slots; four slots are reserved for each candidate pair
     pub fn read(&mut self, device: &DeviceContext) -> Result<Vec<GpuContactOut>, Box<dyn Error>> {
         if self.last_pairs == 0 {
             return Ok(Vec::new());
@@ -682,8 +683,9 @@ impl NarrowPhaseCompute {
         }
 
         let contact_buffer = &self.contacts[self.buffer_index];
-        let bytes = contact_buffer.read(device, self.last_pairs * size_of::<GpuContactOut>())?;
-        let mut out = Vec::with_capacity(self.last_pairs);
+        let slot_count = self.last_pairs * CONTACTS_PER_PAIR;
+        let bytes = contact_buffer.read(device, slot_count * size_of::<GpuContactOut>())?;
+        let mut out = Vec::with_capacity(slot_count);
         for chunk in bytes.chunks_exact(size_of::<GpuContactOut>()) {
             out.push(unsafe { (chunk.as_ptr() as *const GpuContactOut).read() });
         }

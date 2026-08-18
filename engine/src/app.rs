@@ -172,6 +172,11 @@ impl<F: FnMut(&mut Renderer, &mut Scene, &Input, &egui::Context, f64)> Applicati
                     event_loop.exit();
                 }
             }
+            WindowEvent::MouseInput {
+                state: ElementState::Pressed,
+                button,
+                ..
+            } => self.input.mouse_button_pressed(button),
             WindowEvent::CursorEntered { .. } => {
                 // on wayland, cursor visibility only applies while the
                 // pointer is over the window, and the enter path may reset

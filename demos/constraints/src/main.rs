@@ -1,5 +1,5 @@
 //! constraint showcase; springs, rods, ball-and-socket joints and ropes move
-//! side by side under the gpu avbd solver;
+//! side by side under the gpu avbd solver
 mod visualisations;
 
 use diomedes::app::Diomedes;

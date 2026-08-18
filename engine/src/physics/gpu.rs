@@ -259,7 +259,7 @@ impl AvbdSolver {
             c0: Vec3::new(options.margin - depth, 0.0, 0.0),
             penalty: Vec3::splat(options.penalty_min),
             lambda: Vec3::ZERO,
-            friction: (body_a.friction * body_b.friction).sqrt(),
+            friction: options.friction,
         }
     }
 
@@ -311,6 +311,44 @@ impl AvbdSolver {
     }
 }
 
+fn cube_support_face(body: &AvbdBody, outward: Vec3, half_extent: f32) -> [Vec3; 4] {
+    let axes = [
+        body.orientation * Vec3::X,
+        body.orientation * Vec3::Y,
+        body.orientation * Vec3::Z,
+    ];
+    let mut axis_index = 0usize;
+    let mut best_alignment = axes[0].dot(outward).abs();
+    for index in 1..3 {
+        let alignment = axes[index].dot(outward).abs();
+        if alignment > best_alignment {
+            axis_index = index;
+            best_alignment = alignment;
+        }
+    }
+    let face_axis = axes[axis_index];
+    let face_normal = face_axis
+        * if face_axis.dot(outward) >= 0.0 {
+            1.0
+        } else {
+            -1.0
+        };
+    let center = body.position + face_normal * half_extent;
+    let (u, v) = if axis_index == 0 {
+        (axes[1], axes[2])
+    } else if axis_index == 1 {
+        (axes[0], axes[2])
+    } else {
+        (axes[0], axes[1])
+    };
+    [
+        center + u * half_extent + v * half_extent,
+        center - u * half_extent + v * half_extent,
+        center - u * half_extent - v * half_extent,
+        center + u * half_extent - v * half_extent,
+    ]
+}
+
 fn container_contacts(
     container: &AvbdContainer,
     body: &AvbdBody,
@@ -328,27 +366,39 @@ fn container_contacts(
     ] {
         let outward = container.rotation * (axis * sign);
         let plane = container.center.dot(outward) + container.half_extent;
-        let local_direction = body.orientation.inverse() * outward;
-        let support_point = body.orientation * body.shape.support(local_direction) + body.position;
-        let depth = support_point.dot(outward) - plane;
-        if depth <= 0.0 {
-            continue;
-        }
+        let (support_points, support_count) = match body.shape {
+            Shape::Cube(half_extent) => (cube_support_face(body, outward, half_extent), 4usize),
+            _ => {
+                let local_direction = body.orientation.inverse() * outward;
+                let support_point =
+                    body.orientation * body.shape.support(local_direction) + body.position;
+                ([support_point; 4], 1usize)
+            }
+        };
         let normal = -outward;
         let (tangent1, tangent2) = tangents(normal);
-        out.push(AvbdContact {
-            a: body_index,
-            b: CONTAINER,
-            normal,
-            tangent1,
-            tangent2,
-            r_a: body.orientation.inverse() * (support_point - body.position),
-            r_b: Vec3::ZERO,
-            c0: Vec3::new(options.margin - depth, 0.0, 0.0),
-            penalty: Vec3::splat(options.penalty_min),
-            lambda: Vec3::ZERO,
-            friction: body.friction,
-        });
+        for point_index in 0..support_count {
+            let contact_point = support_points[point_index];
+            let current_depth = contact_point.dot(outward) - plane;
+            let predicted_point = contact_point + body.velocity * options.dt;
+            let predicted_depth = predicted_point.dot(outward) - plane;
+            let depth = current_depth.max(predicted_depth);
+            if depth > 0.0 {
+                out.push(AvbdContact {
+                    a: body_index,
+                    b: CONTAINER,
+                    normal,
+                    tangent1,
+                    tangent2,
+                    r_a: body.orientation.inverse() * (contact_point - body.position),
+                    r_b: Vec3::ZERO,
+                    c0: Vec3::new(options.margin - depth, 0.0, 0.0),
+                    penalty: Vec3::splat(options.penalty_min),
+                    lambda: Vec3::ZERO,
+                    friction: options.friction,
+                });
+            }
+        }
     }
     out
 }
@@ -361,4 +411,24 @@ fn tangents(normal: Vec3) -> (Vec3, Vec3) {
     }
     .normalize();
     (tangent1, normal.cross(tangent1))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn penetrating_cube_gets_four_floor_contacts() {
+        let container = AvbdContainer {
+            center: Vec3::new(0.0, 4.0, 0.0),
+            rotation: Quat::IDENTITY,
+            half_extent: 4.0,
+        };
+        let body = AvbdBody::cube(Vec3::new(0.0, 0.49, 0.0), 0.5, 1.0);
+        let options = AvbdOptions::default();
+        let contacts = container_contacts(&container, &body, 0, &options);
+        assert_eq!(contacts.len(), 4);
+        assert!(contacts.iter().all(|contact| contact.normal == Vec3::Y));
+        assert!(contacts.iter().all(|contact| contact.r_a.y < -0.49));
+    }
 }

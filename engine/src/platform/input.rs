@@ -3,6 +3,7 @@
 
 use std::collections::HashSet;
 
+pub use winit::event::MouseButton;
 pub use winit::keyboard::{Key, NamedKey};
 
 /// input state for one frame; the app shell fills it from window/device
@@ -13,6 +14,7 @@ pub struct Input {
     keys_down: HashSet<Key>,
     mouse_delta: (f64, f64),
     scroll: f64,
+    mouse_buttons_pressed: HashSet<MouseButton>,
 }
 
 impl Input {
@@ -42,6 +44,11 @@ impl Input {
         self.scroll
     }
 
+    /// whether a mouse button was pressed since the previous frame
+    pub fn is_mouse_button_pressed(&self, button: MouseButton) -> bool {
+        self.mouse_buttons_pressed.contains(&button)
+    }
+
     pub(crate) fn key_pressed(&mut self, key: Key) {
         self.keys_down.insert(key);
     }
@@ -59,8 +66,13 @@ impl Input {
         self.scroll += lines;
     }
 
+    pub(crate) fn mouse_button_pressed(&mut self, button: MouseButton) {
+        self.mouse_buttons_pressed.insert(button);
+    }
+
     pub(crate) fn clear_frame(&mut self) {
         self.mouse_delta = (0.0, 0.0);
         self.scroll = 0.0;
+        self.mouse_buttons_pressed.clear();
     }
 }

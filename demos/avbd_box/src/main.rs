@@ -1,15 +1,3 @@
-//! avbd demo: spheres, cubes and tetrahedra bouncing in a box, solved with the engine's
-//! primitive augmented vertex block descent solver; avbd minimizes the
-//! variational form of implicit euler by block coordinate descent: each body
-//! is a 6-dof block whose solve is independent of every other's within a
-//! sweep, so the sweeps parallelize across cores (rayon here);
-//! contacts come from the gpu broad and narrow phases; the narrow phase uses
-//! analytic sphere contacts plus gjk and epa witness reconstruction;
-//!
-//! press p to toggle the parallel sweeps; the hud shows the per-frame solver
-//! time for the current mode; controls: wasd + mouse look, q/e up-down,
-//! scroll to zoom;
-
 use std::time::Instant;
 
 use diomedes::app::Diomedes;
@@ -23,7 +11,7 @@ use diomedes::render::gpu_physics;
 use diomedes::scene::{MeshShape, RenderStyle, Scene, Transform};
 use rand::Rng;
 
-/// target sphere count; the demo clamps to the device's instance capacity;
+/// target sphere count; the demo clamps to the device's instance capacity
 const MAX_BODIES: usize = 240;
 const SPHERE_RADIUS: f32 = 0.3;
 const CUBE_COUNT: usize = 16;
@@ -35,23 +23,21 @@ const BOX_HALF_EXTENT: f32 = 2.0;
 fn main() {
     env_logger::init();
 
-    // the wireframe box is the built-in cube, rendered with line polygons;
-    // its interior is the avbd container (walls, not a solid);
+    // the wireframe box is the built-in cube, rendered with line polygons
     let scene = Scene::new().with_styled(
         MeshShape::Cube,
         Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::splat(4.0)),
         RenderStyle::Wireframe,
     );
 
-    // initial camera facing the origin;
+    // initial camera facing the origin
     let mut yaw = -2.3562_f32;
     let mut pitch = -0.459_f32;
 
     let mut time = 0.0f32;
     let mut camera_set = false;
     let mut loaded = false;
-    // per-body render scale, mirroring the spawn order (spheres, cubes and
-    // tetrahedra have different baked sizes);
+    // per-body render scale
     let mut render_scales: Vec<f32> = Vec::with_capacity(MAX_BODIES);
 
     let mut solver = AvbdSolver::new(Vec::new());
@@ -61,10 +47,6 @@ fn main() {
         half_extent: BOX_HALF_EXTENT,
     });
     let mut options = AvbdOptions::default();
-    // the reference α = 0;99 corrects only 1% of the penetration per step;
-    // a dense bouncing pile creeps its lateral pressure into the walls at
-    // equilibrium penetration ≈ creep / (1-α); 0;8 keeps the surfaces at
-    // the walls while staying lively;
     options.alpha = 0.8;
     let run_options = gpu_physics::AvbdRunOptions {
         dt: options.dt,
@@ -74,7 +56,8 @@ fn main() {
         penalty_max: options.penalty_max,
         iterations: options.iterations as u32,
     };
-    // hud state;
+
+    // hud state
     let mut fps_accum = 0.0f32;
     let mut fps_frames = 0u32;
     let mut fps_timer = 0.0f32;
@@ -98,7 +81,7 @@ fn main() {
         time += delta;
 
         // once the renderer is ready: register the icosphere mesh and spawn
-        // the spheres, clamped to the device's instance capacity;
+        // the spheres, clamped to the device's instance capacity
         if !loaded {
             let icosphere = asset::load_obj("res/icosphere.obj", [0.75, 0.78, 0.82])
                 .expect("failed to load res/icosphere.obj");
@@ -106,7 +89,7 @@ fn main() {
                 .register_mesh_data(MeshShape::Icosphere, &icosphere)
                 .expect("failed to register icosphere mesh");
             let count = renderer.instance_capacity().saturating_sub(1).min(MAX_BODIES);
-            // tetrahedron corners from the obj (deduped by position), scaled;
+            // tetrahedron corners from the obj (deduped by position), scaled
             let tetra_mesh = asset::load_obj("res/tetrahedron.obj", [0.9, 0.6, 0.4])
                 .expect("failed to load res/tetrahedron.obj");
             renderer
@@ -152,7 +135,7 @@ fn main() {
                     );
                 }
                 // a few cubes and tetrahedra exercise the epa contact path;
-                // spheres make up the bulk;
+                // spheres make up the bulk
                 let (mut body, render_scale, shape) = match index {
                     i if i < CUBE_COUNT => (
                         AvbdBody::cube(position, CUBE_HALF_EXTENT, 1.0),
@@ -195,14 +178,14 @@ fn main() {
             camera_set = true;
         }
 
-        // orbit the directional light so the shading sweeps the spheres;
+        // orbit the directional light so the shading sweeps the spheres
         let light = renderer.light_mut();
         light.direction = Vec3::new(0.5 * time.cos(), -0.7, 0.5 * time.sin()).normalize();
 
-        // --- simulation (pipelined): the solve for this frame was submitted
+        // simulation pipeline: the solve for this frame was submitted
         // at the end of the previous frame and ran during its render, so the
         // read here is a cheap sync; the contacts (broad + narrow) for the
-        // current state were also computed last frame's end;
+        // current state were also computed last frame's end
         let step_start = Instant::now();
         if solve_primed {
             let result = renderer.gpu_physics_read().expect("GPU AVBD solve read failed");
@@ -244,8 +227,8 @@ fn main() {
         accounted += step_piece;
 
         // submit the gpu broad phase over the post-step state, then read the
-        // pair count and dispatch the narrow phase ; all before the render
-        // queues, so the narrow's fence has a full frame to signal;
+        // pair count and dispatch the narrow phase; all before the render
+        // queues, so the narrow's fence has a full frame to signal
         let gpu_bodies: Vec<GpuBody> = solver
             .bodies
             .iter()
@@ -267,7 +250,7 @@ fn main() {
 
         // submit the next frame's solve: the current state plus the
         // contacts for it (built above), dispatched after the render so the
-        // gpu runs it during the next frame's setup; read back next frame;
+        // gpu runs it during the next frame's setup; read back next frame.
         {
             let state = gpu_physics::state_from_bodies(&solver.bodies);
             let positions: Vec<_> = solver.bodies.iter().map(|b| b.position).collect();
@@ -289,7 +272,6 @@ fn main() {
             solve_primed = true;
         }
 
-        // --- scene sync --------------------------------------------------
         let t2 = Instant::now();
         for (i, instance) in scene.instances_mut().iter_mut().skip(1).enumerate() {
             instance.transform.translation = solver.bodies[i].position;
@@ -300,8 +282,6 @@ fn main() {
         sync_ms = sync_ms * 0.9 + sync_piece * 0.1;
         accounted += sync_piece;
 
-        // --- toggle the parallel sweeps ---------------------------------
-        // --- camera controls --------------------------------------------
         const SENSITIVITY: f32 = 0.0025;
         let (dx, dy) = input.mouse_delta();
         yaw -= dx as f32 * SENSITIVITY;
@@ -347,7 +327,6 @@ fn main() {
         let fov = (camera.vertical_fov() - input.scroll_delta() as f32 * 0.15).clamp(0.25, 1.6);
         camera.set_vertical_fov(fov);
 
-        // --- hud ---------------------------------------------------------
         if delta > 0.0 {
             fps_accum += 1.0 / delta;
             fps_frames += 1;

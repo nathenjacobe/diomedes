@@ -43,7 +43,7 @@ pub enum RenderStyle {
 
 /// the kind of geometry an instance refers to; built-in shapes are generated
 /// by the renderer
-/// #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MeshShape {
     Triangle,
     Cube,

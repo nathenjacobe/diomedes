@@ -64,3 +64,8 @@ pub fn support(shape: &ShapeData, direction: Vec3) -> Vec3 {
 pub fn both_spheres(a: &ShapeData, b: &ShapeData) -> bool {
     a.tag == SPHERE && b.tag == SPHERE
 }
+
+/// whether two shapes are both oriented cubes
+pub fn both_cubes(a: &ShapeData, b: &ShapeData) -> bool {
+    a.tag == CUBE && b.tag == CUBE
+}

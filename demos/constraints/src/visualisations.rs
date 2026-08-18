@@ -1,7 +1,7 @@
 use diomedes::glam::{Quat, Vec3};
 use diomedes::scene::{InstanceId, MeshShape, Scene, Transform};
 
-/// a constraint link rendered as short cube segments;
+/// a constraint link rendered as short cube segments
 pub struct ConstraintVisualisation {
     segments: Vec<InstanceId>,
     amplitude: f32,
